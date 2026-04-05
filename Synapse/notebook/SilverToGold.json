@@ -1,0 +1,354 @@
+{
+	"name": "SilverToGold",
+	"properties": {
+		"nbformat": 4,
+		"nbformat_minor": 2,
+		"bigDataPool": {
+			"referenceName": "parkpool1",
+			"type": "BigDataPoolReference"
+		},
+		"sessionProperties": {
+			"driverMemory": "28g",
+			"driverCores": 4,
+			"executorMemory": "28g",
+			"executorCores": 4,
+			"numExecutors": 2,
+			"runAsWorkspaceSystemIdentity": false,
+			"conf": {
+				"spark.dynamicAllocation.enabled": "false",
+				"spark.dynamicAllocation.minExecutors": "2",
+				"spark.dynamicAllocation.maxExecutors": "2",
+				"spark.autotune.trackingId": "e31e3d10-c2b1-4579-bcac-61f758def756"
+			}
+		},
+		"metadata": {
+			"saveOutput": true,
+			"synapse_widget": {
+				"version": "0.1"
+			},
+			"enableDebugMode": false,
+			"language_info": {
+				"name": "python"
+			},
+			"a365ComputeOptions": {
+				"id": "/subscriptions/56bc819a-1abb-420c-9a1d-69bf90a0ae99/resourceGroups/rg_azure_practice/providers/Microsoft.Synapse/workspaces/synapse-only01/bigDataPools/parkpool1",
+				"name": "parkpool1",
+				"type": "Spark",
+				"endpoint": "https://synapse-only01.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/parkpool1",
+				"auth": {
+					"type": "AAD",
+					"authResource": "https://dev.azuresynapse.net",
+					"authHeader": null
+				},
+				"sparkVersion": "3.5",
+				"nodeCount": 3,
+				"cores": 4,
+				"memory": 28,
+				"extraHeader": null
+			},
+			"sessionKeepAliveTimeout": 30
+		},
+		"cells": [
+			{
+				"cell_type": "code",
+				"source": [
+					"from pyspark.sql.functions import monotonically_increasing_id, current_date, lit, year, month, dayofmonth, quarter, date_format, col, current_timestamp, max as spark_max\n",
+					"from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType\n",
+					"\n",
+					"# Define Silver and Gold storage paths\n",
+					"silver_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/Silver/\"\n",
+					"gold_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/Gold/\"\n",
+					"\n",
+					"\n",
+					"df_silver_visits = spark.read.parquet(f\"{silver_path}/visits/\")\n",
+					"df_silver_patients = spark.read.parquet(f\"{silver_path}/patients/\")\n",
+					"df_silver_doctors = spark.read.parquet(f\"{silver_path}/doctors/\")\n",
+					"df_silver_departments = spark.read.parquet(f\"{silver_path}/departments/\")\n",
+					"df_silver_billing = spark.read.parquet(f\"{silver_path}/billing/\")\n",
+					"\n",
+					"print(\"✅ Silver tables loaded successfully!\")\n",
+					"\n",
+					""
+				],
+				"execution_count": 17
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"\n",
+					"from pyspark.sql.functions import col, year, month, dayofmonth, row_number\n",
+					"from pyspark.sql.window import Window\n",
+					"\n",
+					"# Define Silver and Gold storage paths\n",
+					"silver_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/Silver/\"\n",
+					"gold_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/Gold/\"\n",
+					"\n",
+					"final_df = spark.read.option(\"header\",True).csv(\"silver_path\")\n",
+					"\n",
+					"# ================================\n",
+					"# Window for surrogate keys\n",
+					"# ================================\n",
+					"window_spec = Window.orderBy(\"subject_id\")\n",
+					"\n",
+					"# ================================\n",
+					"# DIM PATIENT\n",
+					"# ================================\n",
+					"dim_patient = final_df.select(\n",
+					"        col(\"subject_id\"),\n",
+					"        col(\"gender\"),\n",
+					"        col(\"anchor_age\")\n",
+					"    ) \\\n",
+					"    .dropDuplicates() \\\n",
+					"    .withColumn(\"patient_key\", row_number().over(window_spec))\n",
+					""
+				],
+				"execution_count": 15
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					""
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"print(\"========== CREATING DIM_PATIENT ==========\")\n",
+					"\n",
+					"df_dim_patient = df_silver_patients \\\n",
+					"    .select(\"patient_id\", \"gender\", \"anchor_age\", \"anchor_year\") \\\n",
+					"    .withColumn(\"patient_sk\", monotonically_increasing_id()) \\\n",
+					"    .withColumn(\"effective_from\", current_date()) \\\n",
+					"    .withColumn(\"effective_to\", lit(None).cast(\"date\")) \\\n",
+					"    .withColumn(\"is_current\", lit(\"Y\"))\n",
+					"\n",
+					"print(f\"Dim_Patient: {df_dim_patient.count()} rows\")\n",
+					"df_dim_patient.write.mode(\"overwrite\").csv(f\"{gold_path}/dim_patient/\")"
+				],
+				"execution_count": 20
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"print(\"========== CREATING DIM_DOCTOR ==========\")\n",
+					"\n",
+					"df_dim_doctor = df_silver_doctors \\\n",
+					"    .select(\"doctor_id\", \"doctor_name\", \"specialization\", \n",
+					"            \"experience_years\", \"qualification\", \"joining_date\", \n",
+					"            \"city\", \"active_flag\") \\\n",
+					"    .withColumn(\"doctor_sk\", monotonically_increasing_id()) \\\n",
+					"    .withColumn(\"effective_from\", current_date()) \\\n",
+					"    .withColumn(\"effective_to\", lit(None).cast(\"date\")) \\\n",
+					"    .withColumn(\"is_current\", lit(\"Y\"))\n",
+					"\n",
+					"print(f\"Dim_Doctor: {df_dim_doctor.count()} rows\")\n",
+					"df_dim_doctor.write.mode(\"overwrite\").csv(f\"{gold_path}/dim_doctor/\")"
+				],
+				"execution_count": 21
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"print(\"========== CREATING DIM_DEPARTMENT ==========\")\n",
+					"\n",
+					"df_dim_department = df_silver_departments \\\n",
+					"    .select(\"department_id\", \"department_name\", \"department_head\",\n",
+					"            \"floor_number\", \"building\", \"active_flag\") \\\n",
+					"    .withColumn(\"department_sk\", monotonically_increasing_id())\n",
+					"\n",
+					"print(f\"Dim_Department: {df_dim_department.count()} rows\")\n",
+					"df_dim_department.write.mode(\"overwrite\").csv(f\"{gold_path}/dim_department/\")"
+				],
+				"execution_count": 22
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"print(\"========== CREATING DIM_DIAGNOSIS ==========\")\n",
+					"\n",
+					"\n",
+					"df_dim_diagnosis = df_icd \\\n",
+					"    .select(\n",
+					"        col(\"icd_code\").alias(\"diagnosis_code\"),\n",
+					"        col(\"long_title\").alias(\"diagnosis_description\")\n",
+					"    ) \\\n",
+					"    .filter(col(\"diagnosis_code\").isNotNull()) \\\n",
+					"    .dropDuplicates([\"diagnosis_code\"]) \\\n",
+					"    .withColumn(\"diagnosis_sk\", monotonically_increasing_id())\n",
+					"    \n",
+					"df_dim_diagnosis.write \\\n",
+					"    .mode(\"overwrite\") \\\n",
+					"    .format(\"csv\") \\\n",
+					"    .save(f\"{gold_path}/dim_diagnosis/\")"
+				],
+				"execution_count": 9
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"print(\"========== CREATING DIM_DATE ==========\")\n",
+					"\n",
+					"df_dim_date = df_silver_visits \\\n",
+					"    .select(col(\"visit_date\").alias(\"full_date\")) \\\n",
+					"    .filter(col(\"full_date\").isNotNull()) \\\n",
+					"    .dropDuplicates([\"full_date\"]) \\\n",
+					"    .withColumn(\"date_sk\", monotonically_increasing_id()) \\\n",
+					"    .withColumn(\"day\", dayofmonth(col(\"full_date\"))) \\\n",
+					"    .withColumn(\"month\", month(col(\"full_date\"))) \\\n",
+					"    .withColumn(\"quarter\", quarter(col(\"full_date\"))) \\\n",
+					"    .withColumn(\"year\", year(col(\"full_date\")))\n",
+					"\n",
+					"print(f\"Dim_Date: {df_dim_date.count()} rows\")\n",
+					"df_dim_date.write.mode(\"overwrite\").csv(f\"{gold_path}/dim_date/\")"
+				],
+				"execution_count": 24
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"# Cell 4 - Create Fact Table\n",
+					"print(\"========== CREATING FACT_PATIENT_VISIT ==========\")\n",
+					"\n",
+					"\n",
+					"\n",
+					"\n",
+					"gold_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/Gold/\"\n",
+					"\n",
+					"df_dim_patient = spark.read.parquet(f\"{gold_path}/dim_patient/\")\n",
+					"df_dim_date = spark.read.parquet(f\"{gold_path}/dim_date/\")\n",
+					"df_dim_diagnosis = spark.read.parquet(f\"{gold_path}/dim_diagnosis/\")\n",
+					"\n",
+					"df_fact = df_silver_visits \\\n",
+					"    .join(df_dim_patient.select(\"patient_id\", \"patient_sk\"), \"patient_id\", \"left\") \\\n",
+					"    .join(df_dim_date.select(\"full_date\", \"date_sk\"), df_silver_visits[\"visit_date\"] == df_dim_date[\"full_date\"], \"left\") \\\n",
+					"    .join(df_dim_diagnosis.select(\"diagnosis_code\", \"diagnosis_sk\"), df_silver_visits[\"primary_icd_code\"] == df_dim_diagnosis[\"diagnosis_code\"], \"left\")\n",
+					"\n",
+					"#Select final fact columns\n",
+					"df_fact_final = df_fact.select(\n",
+					"    col(\"visit_id\"),\n",
+					"    col(\"patient_sk\"),\n",
+					"    col(\"date_sk\"),\n",
+					"    col(\"diagnosis_sk\"),\n",
+					"    col(\"admission_type\"),\n",
+					"    col(\"insurance\"),\n",
+					"    col(\"admittime\"),\n",
+					"    col(\"dischtime\"),\n",
+					"    col(\"visit_date\"),\n",
+					"    col(\"hospital_expire_flag\").cast(\"int\").alias(\"hospital_expire_flag\"),\n",
+					"    lit(1).alias(\"visit_count\")\n",
+					") \\\n",
+					".withColumn(\"fact_sk\", monotonically_increasing_id()) \\\n",
+					".dropDuplicates([\"visit_id\"])\n",
+					"\n",
+					"print(f\"Fact_Patient_Visit: {df_fact_final.count()} rows\")\n",
+					"\n",
+					"print(\"✅ Fact table created\")\n",
+					"\n",
+					"# ✅ Correct save\n",
+					"df_fact_final.write.mode(\"overwrite\").csv(f\"{gold_path}/fact_patient_visit/\")\n",
+					"print(\"\\n========== GOLD LAYER SUMMARY ==========\\n\")\n",
+					"\n",
+					"# Cell 5 - Gold Summary\n",
+					"# Load Gold Tables\n",
+					"df_patient      = spark.read.format(\"delta\").load(f\"{gold_path}/dim_patient\")\n",
+					"df_doctor       = spark.read.format(\"delta\").load(f\"{gold_path}/dim_doctor\")\n",
+					"df_department   = spark.read.format(\"delta\").load(f\"{gold_path}/dim_department\")\n",
+					"df_diagnosis    = spark.read.format(\"delta\").load(f\"{gold_path}/dim_diagnosis\")\n",
+					"df_date         = spark.read.format(\"delta\").load(f\"{gold_path}/dim_date\")\n",
+					"df_fact         = spark.read.format(\"delta\").load(f\"{gold_path}/fact_patient_visit\")\n",
+					"\n",
+					"# Counts\n",
+					"patient_count    = df_patient.count()\n",
+					"doctor_count     = df_doctor.count()\n",
+					"department_count = df_department.count()\n",
+					"diagnosis_count  = df_diagnosis.count()\n",
+					"date_count       = df_date.count()\n",
+					"fact_count       = df_fact.count()\n",
+					"\n",
+					"# Print Summary\n",
+					"print(f\"Dim_Patient:         {patient_count} rows\")\n",
+					"print(f\"Dim_Doctor:          {doctor_count} rows\")\n",
+					"print(f\"Dim_Department:      {department_count} rows\")\n",
+					"print(f\"Dim_Diagnosis:       {diagnosis_count} rows\")\n",
+					"print(f\"Dim_Date:            {date_count} rows\")\n",
+					"print(f\"Fact_Patient_Visit:  {fact_count} rows\")\n",
+					"\n",
+					"print(\"⭐ Star Schema Complete!\")"
+				],
+				"execution_count": 2
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"#Cell 6 - Audit Table\n",
+					"print(\"========== CREATING PIPELINE AUDIT TABLE ==========\")\n",
+					"\n",
+					"# ✅ Read fact table from Gold (Fix)\n",
+					"df_fact_final = spark.read.csv(f\"{gold_path}/fact_patient_visit/\")\n",
+					"\n",
+					"audit_data = [(\n",
+					"    str(spark.sql(\"SELECT current_timestamp()\").collect()[0][0]),\n",
+					"    df_silver_patients.count(),\n",
+					"    df_silver_visits.count(),\n",
+					"    df_fact_final.count(),   # ✅ Now works\n",
+					"    275,\n",
+					"    0,\n",
+					"    0\n",
+					")]\n",
+					"\n",
+					"audit_schema = StructType([\n",
+					"    StructField(\"run_date\", StringType(), True),\n",
+					"    StructField(\"bronze_count\", IntegerType(), True),\n",
+					"    StructField(\"silver_count\", IntegerType(), True),\n",
+					"    StructField(\"gold_count\", IntegerType(), True),\n",
+					"    StructField(\"inserted_records\", IntegerType(), True),\n",
+					"    StructField(\"updated_records\", IntegerType(), True),\n",
+					"    StructField(\"expired_records\", IntegerType(), True)\n",
+					"])\n",
+					"\n",
+					"df_audit = spark.createDataFrame(audit_data, audit_schema)\n",
+					"df_audit.write.mode(\"append\").parquet(f\"{gold_path}/pipeline_audit/\")\n",
+					"\n",
+					"print(\"Audit table saved! ✅\")\n",
+					"df_audit.show()"
+				],
+				"execution_count": 32
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"# Cell 7 - Watermark Table\n",
+					"\n",
+					"print(\"========== CREATING WATERMARK ==========\")\n",
+					"\n",
+					"max_date = df_silver_visits \\\n",
+					"    .filter(col(\"visit_date\").isNotNull()) \\\n",
+					"    .agg(max(\"visit_date\").alias(\"last_processed_date\")) \\\n",
+					"    .collect()[0][0]\n",
+					"\n",
+					"watermark_df = spark.createDataFrame([(\n",
+					"    \"visits\",\n",
+					"    str(max_date),\n",
+					"    str(current_timestamp())\n",
+					")], [\n",
+					"    \"table_name\",\n",
+					"    \"last_processed_date\",\n",
+					"    \"updated_at\"\n",
+					"])\n",
+					"\n",
+					"watermark_df.write.mode(\"overwrite\").parquet(f\"{gold_path}/pipeline_watermark/\")\n",
+					"\n",
+					"watermark_df.show()\n",
+					"\n",
+					"print(\"✅ Watermark created\")"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					""
+				]
+			}
+		]
+	}
+}
