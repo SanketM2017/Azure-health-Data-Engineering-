@@ -18,15 +18,16 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "e31e3d10-c2b1-4579-bcac-61f758def756"
+				"spark.autotune.trackingId": "6c519538-37e3-4332-9912-dd277ab8cc41"
 			}
 		},
 		"metadata": {
 			"saveOutput": true,
-			"synapse_widget": {
-				"version": "0.1"
-			},
 			"enableDebugMode": false,
+			"kernelspec": {
+				"name": "synapse_pyspark",
+				"display_name": "Synapse PySpark"
+			},
 			"language_info": {
 				"name": "python"
 			},
@@ -37,14 +38,13 @@
 				"endpoint": "https://synapse-only01.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/parkpool1",
 				"auth": {
 					"type": "AAD",
-					"authResource": "https://dev.azuresynapse.net",
-					"authHeader": null
+					"authResource": "https://dev.azuresynapse.net"
 				},
 				"sparkVersion": "3.5",
 				"nodeCount": 3,
 				"cores": 4,
 				"memory": 28,
-				"extraHeader": null
+				"automaticScaleJobs": false
 			},
 			"sessionKeepAliveTimeout": 30
 		},
@@ -60,55 +60,24 @@
 					"gold_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/Gold/\"\n",
 					"\n",
 					"\n",
-					"df_silver_visits = spark.read.parquet(f\"{silver_path}/visits/\")\n",
-					"df_silver_patients = spark.read.parquet(f\"{silver_path}/patients/\")\n",
-					"df_silver_doctors = spark.read.parquet(f\"{silver_path}/doctors/\")\n",
-					"df_silver_departments = spark.read.parquet(f\"{silver_path}/departments/\")\n",
-					"df_silver_billing = spark.read.parquet(f\"{silver_path}/billing/\")\n",
+					"df_visits = spark.read.parquet(f\"{silver_path}/visits/\")\n",
+					"df_patients = spark.read.parquet(f\"{silver_path}/patients/\")\n",
+					"df_doctors = spark.read.parquet(f\"{silver_path}/doctors/\")\n",
+					"df_departments = spark.read.parquet(f\"{silver_path}/departments/\")\n",
+					"df_billing = spark.read.parquet(f\"{silver_path}/billing/\")\n",
+					"df_diagnoses = spark.read.parquet(f\"{silver_path}/diagnoses/\")\n",
 					"\n",
-					"print(\"✅ Silver tables loaded successfully!\")\n",
-					"\n",
+					"print(\"✅ Silver data loaded\")\n",
 					""
 				],
-				"execution_count": 17
-			},
-			{
-				"cell_type": "code",
-				"source": [
-					"\n",
-					"from pyspark.sql.functions import col, year, month, dayofmonth, row_number\n",
-					"from pyspark.sql.window import Window\n",
-					"\n",
-					"# Define Silver and Gold storage paths\n",
-					"silver_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/Silver/\"\n",
-					"gold_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/Gold/\"\n",
-					"\n",
-					"final_df = spark.read.option(\"header\",True).csv(\"silver_path\")\n",
-					"\n",
-					"# ================================\n",
-					"# Window for surrogate keys\n",
-					"# ================================\n",
-					"window_spec = Window.orderBy(\"subject_id\")\n",
-					"\n",
-					"# ================================\n",
-					"# DIM PATIENT\n",
-					"# ================================\n",
-					"dim_patient = final_df.select(\n",
-					"        col(\"subject_id\"),\n",
-					"        col(\"gender\"),\n",
-					"        col(\"anchor_age\")\n",
-					"    ) \\\n",
-					"    .dropDuplicates() \\\n",
-					"    .withColumn(\"patient_key\", row_number().over(window_spec))\n",
-					""
-				],
-				"execution_count": 15
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
 				"source": [
 					""
-				]
+				],
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -125,7 +94,7 @@
 					"print(f\"Dim_Patient: {df_dim_patient.count()} rows\")\n",
 					"df_dim_patient.write.mode(\"overwrite\").csv(f\"{gold_path}/dim_patient/\")"
 				],
-				"execution_count": 20
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -144,7 +113,7 @@
 					"print(f\"Dim_Doctor: {df_dim_doctor.count()} rows\")\n",
 					"df_dim_doctor.write.mode(\"overwrite\").csv(f\"{gold_path}/dim_doctor/\")"
 				],
-				"execution_count": 21
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -159,7 +128,7 @@
 					"print(f\"Dim_Department: {df_dim_department.count()} rows\")\n",
 					"df_dim_department.write.mode(\"overwrite\").csv(f\"{gold_path}/dim_department/\")"
 				],
-				"execution_count": 22
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -181,7 +150,7 @@
 					"    .format(\"csv\") \\\n",
 					"    .save(f\"{gold_path}/dim_diagnosis/\")"
 				],
-				"execution_count": 9
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -201,7 +170,7 @@
 					"print(f\"Dim_Date: {df_dim_date.count()} rows\")\n",
 					"df_dim_date.write.mode(\"overwrite\").csv(f\"{gold_path}/dim_date/\")"
 				],
-				"execution_count": 24
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -275,7 +244,7 @@
 					"\n",
 					"print(\"⭐ Star Schema Complete!\")"
 				],
-				"execution_count": 2
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -312,7 +281,7 @@
 					"print(\"Audit table saved! ✅\")\n",
 					"df_audit.show()"
 				],
-				"execution_count": 32
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -341,13 +310,15 @@
 					"watermark_df.show()\n",
 					"\n",
 					"print(\"✅ Watermark created\")"
-				]
+				],
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
 				"source": [
 					""
-				]
+				],
+				"execution_count": null
 			}
 		]
 	}
