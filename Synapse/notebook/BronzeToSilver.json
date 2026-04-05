@@ -18,15 +18,16 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "8294db2b-8058-429d-b71c-dbb3b06a6826"
+				"spark.autotune.trackingId": "35357615-c2de-4bb3-a3ea-3df28a06a7bd"
 			}
 		},
 		"metadata": {
 			"saveOutput": true,
-			"synapse_widget": {
-				"version": "0.1"
-			},
 			"enableDebugMode": false,
+			"kernelspec": {
+				"name": "synapse_pyspark",
+				"display_name": "Synapse PySpark"
+			},
 			"language_info": {
 				"name": "python"
 			},
@@ -37,14 +38,13 @@
 				"endpoint": "https://synapse-only01.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/parkpool1",
 				"auth": {
 					"type": "AAD",
-					"authResource": "https://dev.azuresynapse.net",
-					"authHeader": null
+					"authResource": "https://dev.azuresynapse.net"
 				},
 				"sparkVersion": "3.5",
 				"nodeCount": 3,
 				"cores": 4,
 				"memory": 28,
-				"extraHeader": null
+				"automaticScaleJobs": false
 			},
 			"sessionKeepAliveTimeout": 30
 		},
@@ -55,105 +55,9 @@
 					"collapsed": false
 				},
 				"source": [
-					"from pyspark.sql.functions import col\n",
-					"from datetime import datetime\n",
-					"\n",
-					"#dynamic File\n",
-					"file_name = f\"health_join_data_{datetime.now().strftime('%Y_%m_%d')}.csv\"\n",
-					"\n",
-					"#Base Path(bronze)\n",
-					"\n",
-					"bronze_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/bronze/\"\n",
-					"\n",
-					"#Read Data\n",
-					"admissions_df = spark.read.csv(bronze_path + \"admissions.csv\", header=True, inferSchema=True)\n",
-					"patients_df = spark.read.csv(bronze_path + \"patients.csv\", header=True, inferSchema=True)\n",
-					"diagnoses_df = spark.read.csv(bronze_path + \"diagnoses_icd.csv\", header=True, inferSchema=True)\n",
-					"icd_desc_df = spark.read.csv(bronze_path + \"d_icd_diagnoses.csv\", header=True, inferSchema=True)\n",
-					"\n",
-					"\n",
-					"# Standardize Columns\n",
-					"admissions_df = admissions_df \\\n",
-					"    .withColumn(\"admit_date\", col(\"admittime\").cast(\"date\")) \\\n",
-					"    .withColumn(\"discharge_date\", col(\"dischtime\").cast(\"date\"))\n",
-					"\n",
-					"\n",
-					"#Clean Data (Remove Nulls)\n",
-					"admissions_df = admissions_df.dropna(subset=[\"subject_id\", \"hadm_id\"])\n",
-					"patients_df = patients_df.dropna(subset=[\"subject_id\"])\n",
-					"\n",
-					"\n",
-					"\n",
-					"\n",
-					"# 🔹 Deduplicate\n",
-					"admissions_df = admissions_df.dropDuplicates([\"hadm_id\"])\n",
-					"patients_df = patients_df.dropDuplicates([\"subject_id\"])\n",
-					"\n",
-					"#Incremental load\n",
-					"last_date = \"2025-04-02\"\n",
-					"admissions_df = admissions_df.filter(col(\"admit_date\") > last_date)\n",
-					"\n",
-					"# Join Data (Integrated Silver Layer)\n",
-					"final_df = admissions_df \\\n",
-					"    .join(patients_df, \"subject_id\", \"left\") \\\n",
-					"    .join(diagnoses_df, [\"subject_id\", \"hadm_id\"], \"left\") \\\n",
-					"    .join(icd_desc_df, [\"icd_code\", \"icd_version\"], \"left\")\n",
-					"\n",
-					"#Final Cleanup\n",
-					"final_df = final_df.dropDuplicates()\n",
-					"\n",
-					"final_df = final_df.select(\n",
-					"    \"subject_id\",\n",
-					"    \"hadm_id\",\n",
-					"    \"gender\",\n",
-					"    \"anchor_age\",\n",
-					"    \"admit_date\",\n",
-					"    \"discharge_date\",\n",
-					"    \"race\",\n",
-					"    \"icd_code\",\n",
-					"    \"long_title\"\n",
-					")\n",
-					"\n",
-					"# Silver path\n",
-					"silver_base_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/Silver/\"\n",
-					"temp_path = silver_base_path + \"temp/\"\n",
-					"final_path = silver_base_path + file_name\n",
-					"\n",
-					"\n",
-					"# 3. Write as single file to temp folder\n",
-					"# -----------------------------\n",
-					"final_df.coalesce(1).write.mode(\"overwrite\").option(\"header\", \"true\").csv(temp_path)\n",
-					"\n",
-					"# -----------------------------\n",
-					"# 4. Hadoop FS rename logic\n",
-					"# -----------------------------\n",
-					"fs = spark._jvm.org.apache.hadoop.fs.FileSystem.get(spark._jsc.hadoopConfiguration())\n",
-					"Path = spark._jvm.org.apache.hadoop.fs.Path\n",
-					"\n",
-					"# List files in temp folder\n",
-					"files = fs.listStatus(Path(temp_path))\n",
-					"\n",
-					"# Find the part file\n",
-					"part_file = None\n",
-					"for file in files:\n",
-					"    name = file.getPath().getName()\n",
-					"    if name.startswith(\"part-\"):\n",
-					"        part_file = file.getPath()\n",
-					"        break\n",
-					"\n",
-					"# Safety check\n",
-					"if part_file is None:\n",
-					"    raise Exception(\"No part file found in temp folder\")\n",
-					"\n",
-					"# Rename part file to final file name\n",
-					"fs.rename(part_file, Path(final_path))\n",
-					"\n",
-					"print(f\"Silver Layer data successfully written to: {final_path}\")\n",
-					"\n",
-					"\n",
 					""
 				],
-				"execution_count": 6
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -165,7 +69,7 @@
 					"# Optional: tune Spark shuffle partitions\n",
 					"spark.conf.set(\"spark.sql.shuffle.partitions\", \"8\")"
 				],
-				"execution_count": 12
+				"execution_count": 32
 			},
 			{
 				"cell_type": "code",
@@ -175,7 +79,7 @@
 					"bronze_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/bronze/\"\n",
 					"silver_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/Silver/\""
 				],
-				"execution_count": 7
+				"execution_count": 33
 			},
 			{
 				"cell_type": "code",
@@ -193,7 +97,8 @@
 					"df_departments = read_csv(bronze_path, \"departments.csv\")\n",
 					"\n",
 					"print(\"All Bronze files loaded successfully!\")"
-				]
+				],
+				"execution_count": 34
 			},
 			{
 				"cell_type": "code",
@@ -226,7 +131,7 @@
 					"\n",
 					"print(\"✅ Validation complete!\")"
 				],
-				"execution_count": 10
+				"execution_count": 35
 			},
 			{
 				"cell_type": "code",
@@ -286,7 +191,7 @@
 					"\n",
 					"print(\"✅ All datasets cleaned successfully!\")"
 				],
-				"execution_count": 13
+				"execution_count": 36
 			},
 			{
 				"cell_type": "code",
@@ -324,31 +229,40 @@
 					"    \"left\"\n",
 					").drop(\"hadm_id_diag\", \"icd_ref_code\")\n",
 					"\n",
+					"# Diagnoses\n",
+					"df_diagnoses_clean = (\n",
+					"    df_diagnoses\n",
+					"    .withColumn(\"icd_code\", trim(col(\"icd_code\")))\n",
+					"    .withColumn(\"icd_version\", col(\"icd_version\").cast(\"int\"))\n",
+					"    .dropDuplicates([\"subject_id\", \"hadm_id\", \"icd_code\"])\n",
+					"    .filter(col(\"subject_id\").isNotNull())\n",
+					")\n",
+					"\n",
+					"# ICD Descriptions\n",
+					"df_icd_clean = (\n",
+					"    df_icd\n",
+					"    .withColumn(\"icd_code\", trim(col(\"icd_code\")))\n",
+					"    .withColumn(\"long_title\", trim(col(\"long_title\")))\n",
+					"    .dropDuplicates([\"icd_code\", \"icd_version\"])\n",
+					")\n",
+					"\n",
 					"print(f\"Joined visits dataset: {df_visits.count()} rows\")"
 				],
-				"execution_count": 14
+				"execution_count": 37
 			},
 			{
 				"cell_type": "code",
 				"source": [
-					"silver_path = \"abfss://sourcedata@saazurepractice077.dfs.core.windows.net/Silver/\"\n",
-					""
-				]
-			},
-			{
-				"cell_type": "code",
-				"source": [
-					"#Cell 7: Save to Silver Layer\n",
-					"\n",
 					"df_visits.write.mode(\"overwrite\").parquet(f\"{silver_path}/visits/\")\n",
 					"df_patients_clean.write.mode(\"overwrite\").parquet(f\"{silver_path}/patients/\")\n",
 					"df_doctors_clean.write.mode(\"overwrite\").parquet(f\"{silver_path}/doctors/\")\n",
 					"df_departments_clean.write.mode(\"overwrite\").parquet(f\"{silver_path}/departments/\")\n",
 					"df_insurance_clean.write.mode(\"overwrite\").parquet(f\"{silver_path}/billing/\")\n",
 					"df_diagnoses_clean.write.mode(\"overwrite\").parquet(f\"{silver_path}/diagnoses/\")\n",
-					"print(\"✅ Silver layer saved successfully!\")"
+					"\n",
+					"print(\"✅ Silver layer saved successfully in PARQUET format!\")"
 				],
-				"execution_count": 15
+				"execution_count": 38
 			}
 		]
 	}
