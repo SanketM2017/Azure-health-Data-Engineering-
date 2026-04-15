@@ -73,11 +73,11 @@ The objective of this project is to build a Longitudinal Access and Adjudication
      
      Also below JSON code of Above Pipeline as follow
      
-     ![PL_SYN_NOTE_VALIDATION_SRC.json](https://github.com/potghanpramod13/Healthcare-Data-Warehouse-Longitudinal-Access-and-Adjudication-Data-/blob/180d66ba84a3fb714cf3b6d2443abdc521d7fb3d/PL_SYN_NOTE_VALIDATION_SRC.json)
+     
      
    - Validation done in Synapse spark pool notebook linked below,
      
-     ![Synapse_NB_Data_Validation_src_to_bronze.ipynb](https://github.com/potghanpramod13/Healthcare-Data-Warehouse-Longitudinal-Access-and-Adjudication-Data-/blob/5e8f02c3b9c5399fd845b6d5ced78f231a35d71e/Synapse_NB_Data_Validation_src_to_bronze.ipynb)
+    
      
    
 4. **Initial Load**: Full data extraction for first run.
@@ -96,7 +96,7 @@ The objective of this project is to build a Longitudinal Access and Adjudication
 
    Also below JSON code of Above Pipeline as follow
 
-   ![PL_ADLS_SRC_TO_BRONZE.json](https://github.com/potghanpramod13/Healthcare-Data-Warehouse-Longitudinal-Access-and-Adjudication-Data-/blob/180d66ba84a3fb714cf3b6d2443abdc521d7fb3d/PL_ADLS_SRC_TO_BRONZE.json)
+
 
 ### Silver Layer
 
@@ -114,13 +114,13 @@ The objective of this project is to build a Longitudinal Access and Adjudication
 
 Also below JSON code of Above Pipeline as follow
 
-![PL_SYN_NOTE_VALIDATION_BRONZE_TO_SILVER.json](https://github.com/potghanpramod13/Healthcare-Data-Warehouse-Longitudinal-Access-and-Adjudication-Data-/blob/180d66ba84a3fb714cf3b6d2443abdc521d7fb3d/PL_SYN_NOTE_VALIDATION_BRONZE_TO_SILVER.json)
+
 
 - **Format**: Store datasets in Parquet format.
 
  Also below notebook of Data validation from bronze to silver layer
  
-  [Synapse_NB_Data_Validation_bronze_to_silver.ipynb](https://github.com/potghanpramod13/Healthcare-Data-Warehouse-Longitudinal-Access-and-Adjudication-Data-/blob/5e8f02c3b9c5399fd845b6d5ced78f231a35d71e/Synapse_NB_Data_Validation_bronze_to_silver.ipynb)
+ 
   
 ### Gold Layer
 
@@ -138,11 +138,11 @@ Also below JSON code of Above Pipeline as follow
   
   Also below JSON code of Above Pipeline as follow
   
-  ![PL_SYN_NOTE_VALIDATION_SILVER_TO_GOLD.json](https://github.com/potghanpramod13/Healthcare-Data-Warehouse-Longitudinal-Access-and-Adjudication-Data-/blob/180d66ba84a3fb714cf3b6d2443abdc521d7fb3d/PL_SYN_NOTE_VALIDATION_SILVER_TO_GOLD.json)
+
   
   Also below notebook of scd for silver to gold layer
   
-  ![Synapse_NB_SCD_DIM_TBL_silver_to_gold.ipynb](https://github.com/potghanpramod13/Healthcare-Data-Warehouse-Longitudinal-Access-and-Adjudication-Data-/blob/5e8f02c3b9c5399fd845b6d5ced78f231a35d71e/Synapse_NB_SCD_DIM_TBL_silver_to_gold.ipynb)
+  
 
 ### Synapse Views
 
@@ -157,11 +157,11 @@ Also below JSON code of Above Pipeline as follow
 
   below JSON file of above pipeline as follow
   
-  ![PL_SYN_VIEWS_CREATE_OR_UPDATE.json](https://github.com/potghanpramod13/Healthcare-Data-Warehouse-Longitudinal-Access-and-Adjudication-Data-/blob/180d66ba84a3fb714cf3b6d2443abdc521d7fb3d/PL_SYN_VIEWS_CREATE_OR_UPDATE.json)
+
 
   Also below sql script for create stored procedure for create views on delta tables
   
-  ![SQL STORED PROCEDURE FOR VIEWS.sql](https://github.com/potghanpramod13/Healthcare-Data-Warehouse-Longitudinal-Access-and-Adjudication-Data-/blob/b288d802d3484a1c1cdfbd3d0717369ee70c5b70/SQL%20STORED%20PROCEDURE%20FOR%20VIEWS.sql)
+ 
 
 ### Orchestration Plan
 
@@ -181,7 +181,7 @@ Also below JSON code of Above Pipeline as follow
 
    also JSON file as below
    
-   ![PL_MASTER_ADF_AND_SYN.json](https://github.com/potghanpramod13/Healthcare-Data-Warehouse-Longitudinal-Access-and-Adjudication-Data-/blob/180d66ba84a3fb714cf3b6d2443abdc521d7fb3d/PL_MASTER_ADF_AND_SYN.json)
+
 
 3. **Scheduling**: Trigger Master Pipeline daily at 9:00 AM IST.
    
